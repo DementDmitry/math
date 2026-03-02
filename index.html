@@ -15,15 +15,18 @@
     .btn-show { background: #27ae60; color: #fff; border: none; }
     .btn-hide { background: #e74c3c; color: #fff; border: none; }
     button:hover { opacity: 0.85; }
-    .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; max-width: 720px; margin: 0 auto; }
-    @media (max-width: 500px) { .grid { grid-template-columns: 1fr; } }
+    .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; max-width: 800px; margin: 0 auto; }
+    @media (max-width: 560px) { .grid { grid-template-columns: 1fr; } }
     .card { background: #fff; border: 1px solid #ddd; border-radius: 12px; padding: 16px; box-shadow: 0 2px 8px rgba(0,0,0,0.07); }
     .card-num { font-size: 12px; color: #aaa; margin-bottom: 4px; }
     .problem { font-size: 20px; font-weight: bold; color: #2c3e50; font-family: monospace; margin-bottom: 12px; }
     .btn-toggle { font-size: 12px; padding: 5px 14px; background: #3498db; color: #fff; border: none; border-radius: 6px; cursor: pointer; }
     .btn-toggle.open { background: #bdc3c7; color: #333; }
-    .answer { margin-top: 10px; color: #27ae60; font-weight: bold; font-size: 15px; }
-    .hint { margin-top: 4px; color: #999; font-size: 12px; }
+    .solution { margin-top: 12px; display: none; border-top: 1px solid #eee; padding-top: 10px; }
+    .step { font-size: 13px; color: #34495e; margin-bottom: 6px; line-height: 1.6; }
+    .step b { color: #2c3e50; }
+    .step-title { font-size: 12px; color: #999; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 2px; }
+    .final { font-size: 15px; font-weight: bold; color: #27ae60; margin-top: 8px; }
     label { font-size: 14px; display: flex; align-items: center; gap: 8px; }
   </style>
 </head>
@@ -44,8 +47,8 @@
     </select>
   </label>
   <button class="btn-new" onclick="regenerate()">🔄 Новые задачи</button>
-  <button class="btn-show" onclick="showAll()">Показать все ответы</button>
-  <button class="btn-hide" onclick="hideAll()">Скрыть все ответы</button>
+  <button class="btn-show" onclick="showAll()">Показать все решения</button>
+  <button class="btn-hide" onclick="hideAll()">Скрыть все решения</button>
 </div>
 
 <div class="grid" id="grid"></div>
@@ -62,14 +65,65 @@ function fraction(n, d) {
   return nn + "/" + dd;
 }
 
+function fractionLatex(n, d) {
+  if (d === 0) return null;
+  const g = gcd(Math.abs(n), Math.abs(d));
+  let nn = n / g, dd = d / g;
+  if (dd < 0) { nn = -nn; dd = -dd; }
+  if (dd === 1) return String(nn);
+  return nn + "/" + dd;
+}
+
 function randInt(a, b) { return Math.floor(Math.random() * (b - a + 1)) + a; }
 function randNZ(a, b) { let v; do { v = randInt(a, b); } while (v === 0); return v; }
 
+function sign(n) { return n >= 0 ? "+" : "−"; }
+function abs(n) { return Math.abs(n); }
+
 function fmtFactor(a, b) {
-  const sign = b >= 0 ? "+" : "−";
-  const abs = Math.abs(b);
-  if (a === 1) return b === 0 ? "x" : "(x " + sign + " " + abs + ")";
-  return b === 0 ? a + "x" : "(" + a + "x " + sign + " " + abs + ")";
+  const sg = b >= 0 ? "+" : "−";
+  const av = Math.abs(b);
+  if (a === 1) return b === 0 ? "x" : "(x " + sg + " " + av + ")";
+  return b === 0 ? a + "x" : "(" + a + "x " + sg + " " + av + ")";
+}
+
+// Build standard form ax²+bx+c from coefficients
+function stdForm(a, b, c) {
+  let s = "";
+  s += (a === 1 ? "" : a) + "x²";
+  if (b !== 0) s += " " + sign(b) + " " + abs(b) + "x";
+  if (c !== 0) s += " " + sign(c) + " " + abs(c);
+  return s + " = 0";
+}
+
+// Generate full solution steps using discriminant method
+function discriminantSolution(a, b, c) {
+  const D = b * b - 4 * a * c;
+  const steps = [];
+  steps.push(`<div class="step-title">Приводим к стандартному виду</div>`);
+  steps.push(`<div class="step"><b>${stdForm(a, b, c)}</b><br>a = ${a}, b = ${b}, c = ${c}</div>`);
+  steps.push(`<div class="step-title">Вычисляем дискриминант</div>`);
+  steps.push(`<div class="step">D = b² − 4ac = ${b}² − 4·${a}·${c} = ${b*b} − ${4*a*c} = <b>${D}</b></div>`);
+
+  let sols = [];
+  if (D < 0) {
+    steps.push(`<div class="step" style="color:#e74c3c">D < 0 — уравнение не имеет действительных корней</div>`);
+  } else if (D === 0) {
+    steps.push(`<div class="step-title">D = 0 → один корень</div>`);
+    const x = fraction(-b, 2 * a);
+    steps.push(`<div class="step">x = −b / 2a = −(${b}) / (2·${a}) = <b>${x}</b></div>`);
+    sols = [x];
+  } else {
+    const sq = Math.sqrt(D);
+    steps.push(`<div class="step-title">D > 0 → два корня</div>`);
+    steps.push(`<div class="step">√D = √${D} = <b>${sq}</b></div>`);
+    const x1 = fraction(-b + sq, 2 * a);
+    const x2 = fraction(-b - sq, 2 * a);
+    steps.push(`<div class="step">x₁ = (−b + √D) / 2a = (−(${b}) + ${sq}) / (2·${a}) = <b>${x1}</b></div>`);
+    steps.push(`<div class="step">x₂ = (−b − √D) / 2a = (−(${b}) − ${sq}) / (2·${a}) = <b>${x2}</b></div>`);
+    sols = [x1, x2];
+  }
+  return { steps, sols };
 }
 
 function generate() {
@@ -79,11 +133,13 @@ function generate() {
   if (type === "factored_zero") {
     const a1 = randInt(1,3), b1 = randNZ(-8,8);
     const a2 = randInt(1,3), b2 = randNZ(-8,8);
-    return {
-      problem: fmtFactor(a1,b1) + fmtFactor(a2,b2) + " = 0",
-      solutions: [fraction(-b1,a1), fraction(-b2,a2)],
-      hint: "Приравняй каждый множитель к 0"
-    };
+    const problem = fmtFactor(a1,b1) + fmtFactor(a2,b2) + " = 0";
+    const x1 = fraction(-b1,a1), x2 = fraction(-b2,a2);
+    const steps = [];
+    steps.push(`<div class="step-title">Произведение равно нулю → каждый множитель = 0</div>`);
+    steps.push(`<div class="step">${fmtFactor(a1,b1)} = 0 &nbsp;→&nbsp; ${a1}x = ${-b1} &nbsp;→&nbsp; <b>x₁ = ${x1}</b></div>`);
+    steps.push(`<div class="step">${fmtFactor(a2,b2)} = 0 &nbsp;→&nbsp; ${a2}x = ${-b2} &nbsp;→&nbsp; <b>x₂ = ${x2}</b></div>`);
+    return { problem, steps, sols: [x1, x2] };
   }
 
   if (type === "factored_nonzero") {
@@ -91,55 +147,56 @@ function generate() {
     const B = b1+b2, C = b1*b2-k;
     const disc = B*B - 4*C;
     if (disc < 0 || Math.sqrt(disc)%1 !== 0) return generate();
-    const sq = Math.sqrt(disc);
-    const s1sign = b1>=0?"+":"−", s2sign = b2>=0?"+":"−";
-    return {
-      problem: "(x " + s1sign + " " + Math.abs(b1) + ")(x " + s2sign + " " + Math.abs(b2) + ") = " + k,
-      solutions: [fraction(-B+sq,2), fraction(-B-sq,2)],
-      hint: "Раскрой скобки, перенеси всё в одну сторону"
-    };
+    const s1 = b1>=0?"+":"−", s2 = b2>=0?"+":"−";
+    const problem = "(x "+s1+" "+abs(b1)+")(x "+s2+" "+abs(b2)+") = "+k;
+    const steps = [];
+    steps.push(`<div class="step-title">Раскрываем скобки</div>`);
+    const expanded = "x² " + sign(B)+" "+abs(B)+"x "+sign(b1*b2)+" "+abs(b1*b2);
+    steps.push(`<div class="step">${expanded} = ${k}</div>`);
+    steps.push(`<div class="step-title">Переносим ${k} влево</div>`);
+    const { steps: dSteps, sols } = discriminantSolution(1, B, C);
+    dSteps.forEach(s => steps.push(s));
+    return { problem, steps, sols };
   }
 
   if (type === "standard") {
-    const r1 = randInt(-8,8), r2 = randInt(-8,8), a = randInt(1,3);
+    const r1 = randInt(-7,7), r2 = randInt(-7,7), a = randInt(1,3);
     const B = -a*(r1+r2), C = a*r1*r2;
-    const bStr = B===0?"": " "+(B>0?"+":"−")+" "+Math.abs(B)+"x";
-    const cStr = C===0?"": " "+(C>0?"+":"−")+" "+Math.abs(C);
-    const aStr = a===1?"":a;
-    return {
-      problem: aStr + "x²" + bStr + cStr + " = 0",
-      solutions: [String(r1), String(r2)],
-      hint: "Дискриминант: D = b² − 4ac"
-    };
+    const problem = stdForm(a, B, C);
+    const { steps, sols } = discriminantSolution(a, B, C);
+    return { problem, steps, sols };
   }
 
   if (type === "with_x") {
     const a = randInt(1,3), b = randNZ(-8,8), c = randNZ(-12,12);
     const disc = b*b + 4*a*c;
     if (disc < 0 || Math.sqrt(disc)%1 !== 0) return generate();
-    const sq = Math.sqrt(disc);
-    const bSign = b>=0?"+":"−";
+    const sg = b>=0?"+":"−";
     const aStr = a===1?"":a;
-    return {
-      problem: "x(" + aStr + "x " + bSign + " " + Math.abs(b) + ") = " + c,
-      solutions: [fraction(-b+sq,2*a), fraction(-b-sq,2*a)],
-      hint: "Раскрой скобки, перенеси c"
-    };
+    const problem = "x("+aStr+"x "+sg+" "+abs(b)+") = "+c;
+    const steps = [];
+    steps.push(`<div class="step-title">Раскрываем скобки</div>`);
+    steps.push(`<div class="step">${stdForm(a, b, -c).replace("= 0","= 0").replace("-(-"+c+")","")} </div>`);
+    const { steps: dSteps, sols } = discriminantSolution(a, b, -c);
+    dSteps.forEach(s => steps.push(s));
+    return { problem, steps, sols };
   }
 
   // move_terms
   const r1 = randInt(-6,6), r2 = randInt(-6,6), a = randInt(1,2);
   const B = -a*(r1+r2), C = a*r1*r2;
-  const b1 = randInt(-5,5), b2 = b1-B, d = -C;
+  const b1v = randInt(-5,5), b2v = b1v-B, dv = -C;
   const aStr = a===1?"":a;
-  const lSign = b1>=0?"+":"−";
-  const rSign = b2>=0?"":"−";
-  const dSign = d>=0?"+":"−";
-  return {
-    problem: aStr+"x² "+lSign+" "+Math.abs(b1)+"x = "+rSign+Math.abs(b2)+"x "+dSign+" "+Math.abs(d),
-    solutions: [String(r1), String(r2)],
-    hint: "Перенеси все члены в одну сторону"
-  };
+  const lSign = b1v>=0?"+":"−";
+  const rSign = b2v>=0?"":"−";
+  const dSign = dv>=0?"+":"−";
+  const problem = aStr+"x² "+lSign+" "+abs(b1v)+"x = "+rSign+abs(b2v)+"x "+dSign+" "+abs(dv);
+  const steps = [];
+  steps.push(`<div class="step-title">Переносим все члены влево</div>`);
+  steps.push(`<div class="step">${stdForm(a, B, C)}</div>`);
+  const { steps: dSteps, sols } = discriminantSolution(a, B, C);
+  dSteps.forEach(s => steps.push(s));
+  return { problem, steps, sols };
 }
 
 let problems = [];
@@ -154,48 +211,48 @@ function render() {
   const grid = document.getElementById("grid");
   grid.innerHTML = "";
   problems.forEach((p, i) => {
+    const finalAns = p.sols.length === 0 ? "Нет действительных корней"
+      : p.sols[0] === p.sols[1] ? "x = " + p.sols[0]
+      : "x₁ = " + p.sols[0] + " , x₂ = " + p.sols[1];
+
     const card = document.createElement("div");
     card.className = "card";
-    card.id = "card-" + i;
+    card.id = "card-"+i;
     card.innerHTML = `
       <div class="card-num">Задача ${i+1}</div>
       <div class="problem">${p.problem}</div>
-      <button class="btn-toggle" onclick="toggle(${i})">Показать ответ</button>
-      <div class="answer" id="ans-${i}" style="display:none">
-        x = ${p.solutions[0] === p.solutions[1] ? p.solutions[0] : p.solutions[0] + " &nbsp;|&nbsp; x = " + p.solutions[1]}
+      <button class="btn-toggle" onclick="toggle(${i})">Показать решение</button>
+      <div class="solution" id="sol-${i}">
+        ${p.steps.join("")}
+        <div class="final">✅ Ответ: ${finalAns}</div>
       </div>
-      <div class="hint" id="hint-${i}" style="display:none">💡 ${p.hint}</div>
     `;
     grid.appendChild(card);
   });
 }
 
 function toggle(i) {
-  const ans = document.getElementById("ans-"+i);
-  const hint = document.getElementById("hint-"+i);
+  const sol = document.getElementById("sol-"+i);
   const btn = document.querySelector("#card-"+i+" .btn-toggle");
-  const visible = ans.style.display !== "none";
-  ans.style.display = visible ? "none" : "block";
-  hint.style.display = visible ? "none" : "block";
-  btn.textContent = visible ? "Показать ответ" : "Скрыть ответ";
+  const visible = sol.style.display === "block";
+  sol.style.display = visible ? "none" : "block";
+  btn.textContent = visible ? "Показать решение" : "Скрыть решение";
   btn.className = visible ? "btn-toggle" : "btn-toggle open";
 }
 
 function showAll() {
   problems.forEach((_,i) => {
-    document.getElementById("ans-"+i).style.display = "block";
-    document.getElementById("hint-"+i).style.display = "block";
+    document.getElementById("sol-"+i).style.display = "block";
     const btn = document.querySelector("#card-"+i+" .btn-toggle");
-    btn.textContent = "Скрыть ответ"; btn.className = "btn-toggle open";
+    btn.textContent = "Скрыть решение"; btn.className = "btn-toggle open";
   });
 }
 
 function hideAll() {
   problems.forEach((_,i) => {
-    document.getElementById("ans-"+i).style.display = "none";
-    document.getElementById("hint-"+i).style.display = "none";
+    document.getElementById("sol-"+i).style.display = "none";
     const btn = document.querySelector("#card-"+i+" .btn-toggle");
-    btn.textContent = "Показать ответ"; btn.className = "btn-toggle";
+    btn.textContent = "Показать решение"; btn.className = "btn-toggle";
   });
 }
 
